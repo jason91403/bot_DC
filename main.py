@@ -10,20 +10,57 @@ Map:
 x range 0~32
 y range 0~16
 
+whole screen
+x max = 79
 (16, 8): @
-中文測試
+
 '''
 
 
 def analyse_screen(sl):
-    md = {}
+    map = {}
+    states = {}
 
     for y in range(len(sl)):
         for x in range(len(sl[y])):
-
             if y < 17 and x < 17:
-                md[(x, y)] = sl[y][x]
-    return md
+                map[(x, y)] = sl[y][x]
+            elif x > 36:
+                states[(x, y)] = sl[y][x]
+
+    player_states = {'Career': catch_keywords(states, 37, 78, 1), 'Health': catch_keywords(states, 44, 55, 2),
+                     'Magic': catch_keywords(states, 43, 55, 3), 'AC': catch_keywords(states, 40, 55, 4),
+                     'Str': catch_keywords(states, 59, 80, 4), 'EV': catch_keywords(states, 40, 55, 5),
+                     'Int': catch_keywords(states, 59, 80, 5), 'SH': catch_keywords(states, 40, 55, 6),
+                     'DEX': catch_keywords(states, 59, 80, 6), 'XL': catch_keywords(states, 40, 55, 7),
+                     'Place': catch_keywords(states, 61, 80, 7), 'Glod': catch_keywords(states, 42, 55, 8),
+                     'Time': catch_keywords(states, 60, 80, 8)}
+
+    """
+    Career: (37-78, 1)
+    Health: (44-55, 2)
+    Magic: (43-55, 3)
+    AC: (40-55, 4)
+    Str: (59-80, 4)
+    EV: (40-55, 5)
+    Int: (59-80, 5)
+    SH: (40-55, 6)
+    DEX: (59-80, 6)
+    XL: (40-55, 7)
+    Place: (61-80, 7)
+    Glod: (42-55, 8)
+    Time: (60-80, 8)
+    """
+
+    return map, player_states
+
+
+def catch_keywords(dic, range_x1, range_x2, y):
+    keyword = ""
+    for x in range(range_x1, range_x2):
+        keyword = keyword + dic[(x, y)]
+    keyword = keyword.replace(' ', '')
+    return keyword
 
 
 '''
@@ -33,10 +70,7 @@ down  => k
 left  => j
 right => l
 i     => h
-
 '''
-
-
 def translate_key(msg):
     '''
     "Enter" = chr(10)
@@ -73,6 +107,7 @@ def main():
     # Set up a 80x24 terminal screen emulation
     screen = pyte.Screen(80, 24)
     stream = pyte.Stream()
+    # stream = pyte.ByteStream()
     stream.attach(screen)
 
     observed_mode = True
@@ -99,6 +134,7 @@ def main():
 
         # Check if the game sent any output
         if (file_descriptor in read):
+
             message = os.read(file_descriptor, 1024)
 
             # Feed the games output into the terminal emulator
@@ -106,6 +142,15 @@ def main():
                 # The emulator only likes reading ascii characters
                 if ord(i) < 128 and ord(i) > 0:
                     stream.feed(unicode(i))
+                elif ord(i) == 226:
+                    stream.feed(unicode("~"))
+                '''
+                ISSUE:
+                Some output of game are not ascii. ex: BLACK CLUB SUIT (tree), 
+                is a obstacle, byte(utf-8, dec): 226 153 163
+                There are three items for one obstacle, so I just replace 226 with "~" temporarily.
+                But it may occur more issues!!!
+                '''
 
             if (message == ""):
                 break
@@ -117,12 +162,17 @@ def main():
             screen_line.append(line)
 
         map_dic = {}
-        map_dic = analyse_screen(screen_line)
+        states = {}
+        map_dic, player_states = analyse_screen(screen_line)
 
         # to check the input Dec code
         if observed_mode == True:
             # print "You enter keyboard Dec: " + str(observed_key)
-            print map_dic[(16, 8)]
+            # print map_dic[(16, 8)]
+
+            testword = player_states['Health']
+
+            print testword
 
 
 # Setup the output terminal (disable canonical mode and echo)
