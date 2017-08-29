@@ -6,7 +6,7 @@ class PathFinding(object):
         move_list = []
         if target_node_found:
             track_back_list = self.__track_back_path(close_list, player_position, target_position)
-            move_list = self.__transfer_to_move(track_back_list)
+            move_list = self.__transfer_to_move(track_back_list, player_position)
         return move_list
 
     def __a_star_search(self, player_position, target_position, map_detail_dic):
@@ -50,19 +50,25 @@ class PathFinding(object):
         return track_back_list
 
     @staticmethod
-    def __transfer_to_move(positions_list):
-        player_position = (16, 8)
+    def __transfer_to_move(positions_list, player_position):
         move = None
         move_list = []
         # for test
-        # move_dic = { (1, 0): 'R', (0, 1): 'U', (-1, 0): 'L', (0, -1): 'D',
-        #              (1, 1): 'RU',(1, -1): 'RD', (-1, 1): 'LU', (-1, -1): 'LD'}
-        move_dic = {(1, 0): chr(108), (0, 1): chr(107), (-1, 0): chr(104), (0, -1): chr(106),
-                    (1, 1): chr(117), (1, -1): chr(110), (-1, 1): chr(121), (-1, -1): chr(98)}
+        # move_dic = { (1, 0): 'R', (0, -1): 'U', (-1, 0): 'L', (0, 1): 'D',
+        #              (1, -1): 'RU',(1, 1): 'RD', (-1, -1): 'LU', (-1, 1): 'LD'}
+        # move_dic = {(1, 0): chr(108), (0, 1): chr(107), (-1, 0): chr(104), (0, -1): chr(106),
+        #             (1, 1): chr(117), (1, -1): chr(110), (-1, 1): chr(121), (-1, -1): chr(98)}
+        move_dic = {(1, 0): chr(27) + chr(91) + chr(67),
+                    (0, -1): chr(27) + chr(91) + chr(65),
+                    (-1, 0): chr(27) + chr(91) + chr(68),
+                    (0, 1): chr(27) + chr(91) + chr(66),
+                    (1, -1): chr(117), (1, 1): chr(110), (-1, -1): chr(121), (-1, 1): chr(98)}
         if positions_list:
             for i in range(len(positions_list)):
+                # key_position = (positions_list[i][0] - player_position[0],
+                #                 player_position[1] - positions_list[i][1])
                 key_position = (positions_list[i][0] - player_position[0],
-                                player_position[1] - positions_list[i][1])
+                                positions_list[i][1] - player_position[1])
                 if key_position in move_dic:
                     move_list.append(move_dic[key_position])
                     player_position = positions_list[i]

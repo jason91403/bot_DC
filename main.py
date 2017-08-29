@@ -6,141 +6,115 @@ import pyte
 from select import select
 from transfer_keys import TransferKeys
 from pathfinding import PathFinding
+from screen_catcher import ScreenCatch
+import collections
+import random
 
 
-'''
-Map:
-x range 0~32
-y range 0~16
+def output_control(fd, msg):
+    move = (0, 0)
+    if msg == chr(27) + chr(91) + chr(67):  # Right
+        # position = (position[0] + 1, position[1])
+        move = (1, 0)
+    elif msg == chr(27) + chr(91) + chr(65):  # UP
+        # position = (position[0], position[1] + 1)
+        move = (0, -1)
+    elif msg == chr(27) + chr(91) + chr(68):  # Left
+        # position = (position[0] - 1, position[1])
+        move = (-1, 0)
+    elif msg == chr(27) + chr(91) + chr(66):  # Down
+        # position = (position[0], position[1] - 1)
+        move = (0, 1)
+    elif msg == chr(117):  # Right Up
+        # position = (position[0] + 1, position[1] + 1)
+        move = (1, -1)
+    elif msg == chr(110):  # Right Down
+        # position = (position[0] + 1, position[1] - 1)
+        move = (1, 1)
+    elif msg == chr(121):  # Left Up
+        # position = (position[0] - 1, position[1] + 1)
+        move = (-1, -1)
+    elif msg == chr(98):  # Left Down
+        # position = (position[0] - 1, position[1] - 1)
+        move = (-1, 1)
 
-whole screen
-x max = 79
-(16, 8): @
+    os.write(fd, msg)
+    time.sleep(0.05)
 
-'''
-
-
-def analyse_screen(sl):
-    map_detail_dic = {}
-    states_dic = {}
-
-    for y in range(len(sl)):
-        for x in range(len(sl[y])):
-            if y < 17 and x < 34:
-                #map_dic[(x, y)] = sl[y][x].encode('ascii')
-                map_detail_dic = create_map_data((x, y), sl[y][x].encode('ascii'), map_detail_dic)
-            elif x > 36:
-                states_dic[(x, y)] = sl[y][x].encode('ascii')
-    # map_detail_dic = catch_map(map_dic)
-    # Only after finishing map data, it can be checked fogs
-    map_detail_dic = check_fogs(map_detail_dic)
-    player_states_dic = catch_states(states_dic)
-
-    return map_detail_dic, player_states_dic
+    return move
 
 
-def create_map_data(position, value, map_dic):
-    """
-    Analyse map information here.
-    :param map_dic:
-    :param position: ex. (x, y)
-    :param value: symbol, ex. #, ., ) etc.
-    :return:the map data, dict type
-    """
-    can_pass_list = [".", "'", ")"]
-    can_it_pass = False
-    if value in can_pass_list:
-        can_it_pass = True
-    # map_dic[position] = [symbol, can pass?, fogs?]
-    map_dic[position] = [value, can_it_pass, False]
-    # fogs value will be checked later, this is a default value
-    return map_dic
+def test_record_map_to_file(file_name, map_dic):
+    test_file = open(file_name, 'w')
+    line_dic = {}
+    line_dic_with_position = {}
+    map_dic = collections.OrderedDict(sorted(map_dic.items()))
+    for position, data_list in map_dic.items():
+        y = position[1]
+        if y not in line_dic:
+            line_dic[y] = data_list[0]
+            line_dic_with_position[y] = str(position) + ", " + data_list[0]
+        else:
+            line_dic[y] = line_dic[y] + data_list[0]
+            line_dic_with_position[y] = line_dic_with_position[y] + " " + str(position) + ", " + data_list[0]
+
+    line_dic = collections.OrderedDict(sorted(line_dic.items()))
+    line_dic_with_position = collections.OrderedDict(sorted(line_dic_with_position.items()))
+
+    for line_num, line in line_dic.items():
+        test_file.write(line + "\n")
+
+    test_file.write("\n\n")
+
+    for line_num, line in line_dic_with_position.items():
+        test_file.write(line + "\n")
+
+    test_file.close()
+
+
+def check_screen_mode_in_standard(map_dic, states_dic):
+    if not map_dic or states_dic is None:
+        return False
+    else:
+        return True
 
 
 def check_fogs(map_dic):
     nb_position_list = [(1, 0), (1, 1), (1, -1),
                         (0, 1), (0, -1),
                         (-1, 0), (-1, 1), (-1, -1)]
+    fogs_dic = {}
     for position, data_list in map_dic.items():
         if data_list[0] == ".":
             for nb_p in nb_position_list:
                 nb_position = (int(position[0]) + nb_p[0], int(position[1]) + nb_p[1])
-                if 0 <= nb_position[0] <= 32 and 0 <= nb_position[1] <= 16:
+                is_fog = False
+                try:
                     nb_data_list = map_dic[nb_position]
-                    # nb_data_list[0] = symbol
                     if nb_data_list[0] == " ":
-                        data_list = map_dic[position]
-                        data_list[2] = True
-                        map_dic[position] = data_list
-                        break
-    return map_dic
+                        is_fog = True
+                except KeyError:
+                    # If the nb_position(Key) is not in map_dic, it is a edge.
+                    is_fog = True
 
-# def catch_map(map_dic):
-#     map_detail_dic = {}
-#     """
-#     map_detail_dic = [symbol, can pass?, ]
-#     """
-#     for key, value in map_dic.items():
-#         map_detail_dic[key] = [value, can_pass(unicode(value))]
-#     return map_detail_dic
-
-#def check_fogs(position, map_dic):
+                if is_fog:
+                    data_list = map_dic[position]
+                    data_list[2] = True
+                    map_dic[position] = data_list
+                    fogs_dic[position] = data_list
+                    break
+    return map_dic, fogs_dic
 
 
+def get_player_position(move_history):
+    position = (16 + move_history[0], 8 + move_history[1])
+    return position
 
-# def can_pass(symbol):
-#     symbol_can_pass = False
-#     '''
-#     can_pass_list need to be study more!!
-#     ) is a club
-#     '''
-#     can_pass_list = [".", "'", ")"]
-#     if symbol in can_pass_list:
-#         symbol_can_pass = True
-#     return symbol_can_pass
-
-
-'''
-    (x, y)
-    Career: (37-78, 1)
-    Health: (44-55, 2)
-    Magic: (43-55, 3)
-    AC: (40-55, 4)
-    Str: (59-80, 4)
-    EV: (40-55, 5)
-    Int: (59-80, 5)
-    SH: (40-55, 6)
-    DEX: (59-80, 6)
-    XL: (40-55, 7)
-    Place: (61-80, 7)
-    Glod: (42-55, 8)
-    Time: (60-80, 8)
-'''
-
-
-def catch_states(sd):
-    psd = {'Career': catch_keywords_by_range_x(sd, 37, 78, 1),
-           'Health': catch_keywords_by_range_x(sd, 44, 55, 2),
-           'Magic': catch_keywords_by_range_x(sd, 43, 55, 3),
-           'AC': catch_keywords_by_range_x(sd, 40, 55, 4),
-           'Str': catch_keywords_by_range_x(sd, 59, 80, 4),
-           'EV': catch_keywords_by_range_x(sd, 40, 55, 5),
-           'Int': catch_keywords_by_range_x(sd, 59, 80, 5),
-           'SH': catch_keywords_by_range_x(sd, 40, 55, 6),
-           'DEX': catch_keywords_by_range_x(sd, 59, 80, 6),
-           'XL': catch_keywords_by_range_x(sd, 40, 55, 7),
-           'Place': catch_keywords_by_range_x(sd, 61, 80, 7),
-           'Glod': catch_keywords_by_range_x(sd, 42, 55, 8),
-           'Time': catch_keywords_by_range_x(sd, 60, 80, 8)}
-    return psd
-
-
-def catch_keywords_by_range_x(dic, range_x1, range_x2, y):
-    keyword = ""
-    for x in range(range_x1, range_x2):
-        keyword = keyword + dic[(x, y)]
-    keyword = keyword.replace(' ', '')
-    return keyword
+def get_update_screen_key(switch_button):
+    if switch_button:
+        return chr(13)  # Enter key
+    else:
+        return chr(122)  # z key
 
 
 def main():
@@ -161,23 +135,37 @@ def main():
     stream.attach(screen)
 
     # test area ##############################################################
-    observed_mode = True
-    observed_key = None
     button_path_finding = False
     button_path_go = False
     path_finding_list = []
+    player_move_history = (0, 0)
     # test area ##############################################################
 
     # Tool classes ###########################################################
+    map_dic = {}  # Current map screen
+    map_record_backup = {}
+    map_record = {}  # Record map
+    player_states = {}
+    game_input_dic = {}
     transfer_key_tool = TransferKeys()
+    screen_catch = ScreenCatch()
+    time_before_move = None
+    move_prepare = (0, 0)
+    tmp_counter = 0
+    need_to_update_screen = False
+    screen_update_switch_button = True
+    screen_update_first = True
     # Tool classes ###########################################################
 
     while True:
         # Wait for input from the game or the keyboard
         (read, write, error) = select([file_descriptor, sys.stdin], [], [file_descriptor])
 
+    # Input area start #################################################################################
+
         # Check if the input was from the keyboard
         if sys.stdin in read:
+
             # If so, pass it to the game
             message = sys.stdin.read(1)
 
@@ -185,27 +173,74 @@ def main():
             message = transfer_key_tool.transfer(message)
 
             # test area ##############################################################
-            if message == chr(111): # o key
+            if message == chr(111):  # o key
                 button_path_finding = not button_path_finding
-            elif message == chr(112): # p key
+            elif message == chr(112):  # p key
                 button_path_go = not button_path_go
             # test area ##############################################################
             else:
                 # Send output to the game, and wait a little bit for it to catch up
-                os.write(file_descriptor, message)
+                # os.write(file_descriptor, message)
+                """
+                    Record current map before any control.
+                    Because it can not sure how many times the input will come,
+                    map_dic will keep update and I'm not sure while it is the final time.
+                    So if map_dic has not updated to the final than record to map_record,
+                    map_record will be wrong.
+                    Therefore, backup map_record and map_dic when player move. Then keep
+                    updating map_record_backup + map_previous + map_dic. map_record_backup
+                    and map_previous would be changed when screen update. map_record will be
+                    update until map_dic stop updating.
+                """
+
+                if player_states is not None:
+                    time_before_move = player_states['Time']
+                # move_prepare = (0, 0)
+                # player_move_history = output_control(file_descriptor, message, player_move_history)
+                move_prepare = output_control(file_descriptor, message)
+                # move_prepare != (0, 0) means control is move. Then, record some data.
+                if move_prepare != (0, 0) and player_states is not None:
+
+                    need_to_update_screen = True
+
+                    player_position = get_player_position(player_move_history)
+                    move_target_position = (player_position[0] + move_prepare[0],
+                                            player_position[1] + move_prepare[1])
+                    if map_record[move_target_position][1]:
+                        player_move_history = (player_move_history[0] + move_prepare[0],
+                                               player_move_history[1] + move_prepare[1])
+                        print "player_move_history update: " + str(player_move_history)
+                    else:
+                        print "target: " + str(move_target_position) + "can not pass..."
+
+
+                    # player_move_history_backup = player_move_history
+                    # player_move_history_back_list.append(player_move_history_backup)
+                    map_record_backup = map_record
+
                 time.sleep(0.05)
 
-        # if press p, start move by path_finding_list
-        if button_path_go:
-            if path_finding_list:
-                m = path_finding_list.pop(0)
-                os.write(file_descriptor, m)
-                time.sleep(0.05)
-            else:
-                button_path_go = not button_path_go
+                # is_move, ph = output_control(file_descriptor, message, player_move_history)
+                # if is_move:
+                #     if check_screen_mode_in_standard(map_dic, player_states):
+                #         player_move_history = ph
+                #         """
+                #             IMPORTANT!!!!!!
+                #             Remember to change the time to backup map_dic and map_record!!
+                #
+                #         """
+                #         # time_previous =
+                #         map_record_backup = map_record
+                #
+                # time.sleep(0.05)
+
+        # Input area end ####################################################################################
+
+        # Output area start #################################################################################
 
         # Check if the game sent any output
         if file_descriptor in read:
+
             message = os.read(file_descriptor, 1024)
 
             # Feed the games output into the terminal emulator
@@ -227,40 +262,130 @@ def main():
                 break
 
         screen_line = []
+
         # Print the current contents of the screen
         for line in screen.display:
             print line
             screen_line.append(line)
 
-        map_dic = {}
-        states = {}
-        map_dic, player_states = analyse_screen(screen_line)
+        map_dic, player_states, game_input_dic = screen_catch.analyse_screen(screen_line, player_move_history)
 
-        # test area ##############################################################
-        tmp_boolean = False
-        tmp_fogs_list = []
-        for position, data_list in map_dic.items():
-            if data_list[2]:
-                tmp_fogs_list.append(position)
-                tmp_boolean = True
-        print "Any fogs? " + str(tmp_boolean)
-        if tmp_boolean:
-            print tmp_fogs_list
+        test_record_map_to_file("map_now.txt", map_dic)
 
-        if button_path_finding :
+        """
+            Merge map_record_backup(record it before move) and map_dic(current map)
+        """
+        # if check_screen_mode_in_standard(map_dic, player_states):
+        #     if time_before_move != player_states['Time']:
+        #         map_record = dict(map_record_backup.items() + map_dic.items())
+
+        if game_input_dic:
+            need_to_update = False
+            game_input_line_6 = game_input_dic['Ginput6']
+            # print "screen_update_switch_button : " + str(screen_update_switch_button)
+            if screen_update_switch_button and game_input_line_6 == "_Unknowncommand.":
+                # Enter key
+                need_to_update = True
+                screen_update_switch_button = False
+            elif not screen_update_switch_button and game_input_line_6 == "_Youdon'tknowanyspells.":
+                # z key
+                need_to_update = True
+                screen_update_switch_button = True
+                # print "_Youdon'tknowanyspells. update"
+            elif screen_update_first and game_input_line_6 == "_Press?foralistofcommandsandotherinformation.":
+                # First time in the game
+                # print "_Press?foralistofcommandsandotherinformation. update"
+                screen_update_first = False
+                need_to_update = True
+            if need_to_update:
+                tmp_counter += 1
+                map_record = dict(map_record_backup.items() + map_dic.items())
+                need_to_update_screen = False
+
+        map_record, fogs_dic = check_fogs(map_record)
+
+        test_record_map_to_file("map_record_after.txt", map_record)
+
+        print "screen update times: " + str(tmp_counter)
+        # Output area end ###################################################################################
+
+        # Other control area start ##########################################################################
+
+        if button_path_finding:
             button_path_finding = not button_path_finding
-            player_position = (16, 8)
-            target_position = (21, 8)
             p = PathFinding()
-            path_finding_list = p.path_finding(player_position, target_position, map_dic)
-            # path_finding_list = path_finding(player_position, target_position, map_dic)
-            # if path_finding_list:
-            #     print "To target: " + str(target_position)
-            #     print "Move: " + str(path_finding_list)
+            player_position = get_player_position(player_move_history)
+            print "Player position: " + str(player_position)
+            path_finding_list = p.path_finding(player_position, (25, 8), map_record)
+            if path_finding_list:
+                print "Moves: " + str(path_finding_list)
+            else:
+                print "This target can't pass."
 
-        # print "path_finding_list: " + str(path_finding_list)
-        # test area ##############################################################
+        # fogs_list = fogs_dic.keys()
+        # print "\nFinal player position: " + str(get_player_position(player_move_history))
+        # if button_path_finding:
+        #     button_path_finding = not button_path_finding
+        #     if fogs_list:
+        #         p = PathFinding()
+        #         a_fog_can_pass = False
+        #         player_position = get_player_position(player_move_history)
+        #         print "Player position: " + str(player_position)
+        #         for fog_position in fogs_list:
+        #             print "Target position: " + str(fog_position)
+        #             path_finding_list = p.path_finding(player_position, fog_position, map_record)
+        #             if path_finding_list:
+        #                 print "Moves: " + str(path_finding_list)
+        #                 a_fog_can_pass = True
+        #                 break
+        #             else:
+        #                 print "This target can't pass."
+        #         if not a_fog_can_pass:
+        #             print "No fog can pass."
 
+        if need_to_update_screen:
+
+            # screen_update_switch_button = not screen_update_switch_button
+            os.write(file_descriptor, get_update_screen_key(screen_update_switch_button))
+            time.sleep(0.05)
+
+        # if press p, start move by path_finding_list
+        if button_path_go:
+            if not need_to_update_screen:
+                if path_finding_list:
+                    need_to_update_screen = True
+                    m = path_finding_list.pop(0)
+                    move_prepare = output_control(file_descriptor, m)
+                    time_before_move = player_states['Time']
+                    map_record_backup = map_record
+                    player_move_history = (player_move_history[0] + move_prepare[0],
+                                           player_move_history[1] + move_prepare[1])
+                    """
+                        Temporarily, do not check whether the move is available. If path_finding_list
+                        is created A*, all moves should be available. Therefore, update player_move_history
+                        immediately. 
+                    """
+                    # if move_prepare != (0, 0) and player_states is not None:
+                    #     print "player_move_history: " + str(player_move_history)
+                    #     player_position = get_player_position(player_move_history)
+                    #     print "player_position: " + str(player_position)
+                    #     print "move_prepare: " + str(move_prepare)
+                    #     move_target_position = (player_position[0] + move_prepare[0],
+                    #                             player_position[1] + move_prepare[1])
+                    #     print "move_target_position: " + str(move_target_position)
+                    #     if map_record[move_target_position][1]:
+                    #         print "move_target_position can pass!!"
+                    #         player_move_history = (player_move_history[0] + move_prepare[0],
+                    #                                player_move_history[1] + move_prepare[1])
+                    #         print "player_move_history update: " + str(player_move_history)
+                    #     else:
+                    #         print "target: " + str(move_target_position) + "can not pass..."
+
+                    time.sleep(0.05)
+                else:
+                    button_path_go = not button_path_go
+
+        # Other control area end ##########################################################################
 
 
 # Setup the output terminal (disable canonical mode and echo)
