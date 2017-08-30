@@ -109,9 +109,12 @@ class PathFinding(object):
                     continue
                 nb_position_x = int(node_position[0]) + x
                 nb_position_y = int(node_position[1]) + y
-                if 0 <= nb_position_x <= 32 and 0 <= nb_position_y <= 16:
+                try:
                     nb = map_detail_dic[nb_position_x, nb_position_y]
                     if nb[1]:
                         nb_list.append(((nb_position_x, nb_position_y), node_position))
                         # (node_position, parent)
+                except KeyError:
+                    pass
+
         return nb_list

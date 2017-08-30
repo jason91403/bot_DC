@@ -70,7 +70,7 @@ class ScreenCatch(object):
         :param value: symbol, ex. #, ., ) etc.
         :return:the map data, dict type
         """
-        can_pass_list = [".", "'", ")"]
+        can_pass_list = [".", "'", ")", ">"]
         can_it_pass = False
         if value in can_pass_list:
             can_it_pass = True
@@ -155,7 +155,8 @@ class ScreenCatch(object):
                    'XL': self.__catch_keywords_by_range_x(sd, 40, 55, 7),
                    'Place': self.__catch_keywords_by_range_x(sd, 61, 80, 7),
                    'Gold': self.__catch_keywords_by_range_x(sd, 42, 55, 8),
-                   'Time': self.__catch_keywords_by_range_x(sd, 60, 80, 8)}
+                   'Time': self.__catch_keywords_by_range_x(sd, 60, 80, 8),
+                   'Monsters': self.__catch_monsters_dic(sd)}
 
             return psd
         else:
@@ -170,7 +171,6 @@ class ScreenCatch(object):
                'Ginput6': self.__catch_keywords_by_range_x(game_input, 0, 80, 22)}
         return gid
 
-
     @staticmethod
     def __catch_keywords_by_range_x(dic, range_x1, range_x2, y):
         keyword = ""
@@ -178,3 +178,21 @@ class ScreenCatch(object):
             keyword = keyword + dic[(x, y)]
         keyword = keyword.replace(' ', '')
         return keyword
+
+    @staticmethod
+    def __catch_monster_by_range_x(dic, range_x1, range_x2, y):
+        monster_short = dic[(range_x1, y)]
+        monster_long = ""
+        for x in range(range_x1 + 1, range_x2):
+            monster_long = monster_long + dic[(x, y)]
+        monster_long = monster_long.replace(' ', '')
+        monster_list = [monster_short, monster_long]
+        return monster_list
+
+    def __catch_monsters_dic(self, sd):
+        monsters_dic = {'Monster1': self.__catch_monster_by_range_x(sd, 37, 80, 12),
+                        'Monster2': self.__catch_monster_by_range_x(sd, 37, 80, 13),
+                        'Monster3': self.__catch_monster_by_range_x(sd, 37, 80, 14),
+                        'Monster4': self.__catch_monster_by_range_x(sd, 37, 80, 15),
+                        'Monster5': self.__catch_monster_by_range_x(sd, 37, 80, 16)}
+        return monsters_dic
