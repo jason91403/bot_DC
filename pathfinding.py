@@ -46,7 +46,12 @@ class PathFinding(object):
         while node_parent != node_start:
             # track_back_list.append(node_parent)
             track_back_list.insert(0, node_parent)
-            node_parent = close_list_dic[node_parent]
+            try:
+                node_parent = close_list_dic[node_parent]
+            except KeyError:
+                print "Error: pathfinding.py, __track_back_path(), node_parent = close_list_dic[node_parent]"
+                print "Key: " + str(node_parent)
+                print "close_list_dic: " + str(close_list_dic)
         return track_back_list
 
     @staticmethod
@@ -114,6 +119,13 @@ class PathFinding(object):
                     if nb[1]:
                         nb_list.append(((nb_position_x, nb_position_y), node_position))
                         # (node_position, parent)
+                    elif nb[3]:
+                        # Maybe it's a monster
+                        nb_list.append(((nb_position_x, nb_position_y), node_position))
+                    elif nb[4]:
+                        # Maybe it's a door
+                        nb_list.append(((nb_position_x, nb_position_y), node_position))
+
                 except KeyError:
                     pass
 

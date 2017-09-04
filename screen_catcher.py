@@ -1,9 +1,14 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from game_dictionary import GameDictionary
+
+
 class ScreenCatch(object):
     map_x_border = 33
     map_y_border = 17
     states_x_border = 36
     states_y_border = 17
-
+    game_dictionary = GameDictionary()
     """
         Map:
         x range 0~32
@@ -29,14 +34,14 @@ class ScreenCatch(object):
                 if y < self.map_y_border and x < self.map_x_border:
                     # Map area
                     position = (x + move_history[0], y + move_history[1])
-                    value = sl[y][x].encode('ascii')
+                    value = sl[y][x].encode('utf-8')
                     map_detail_dic = self.__create_map_data(position, value, map_detail_dic)
                 elif y < self.states_y_border and x > self.states_x_border:
                     # States area
-                    states_dic[(x, y)] = sl[y][x].encode('ascii')
+                    states_dic[(x, y)] = sl[y][x].encode('utf-8')
                 elif y >= self.states_y_border:
                     # Game input area
-                    game_input[(x, y)] = sl[y][x].encode('ascii')
+                    game_input[(x, y)] = sl[y][x].encode('utf-8')
 
         # map_detail_dic = self.__check_fogs(map_detail_dic)
         player_states_dic = self.__catch_states(states_dic)
@@ -61,8 +66,7 @@ class ScreenCatch(object):
 
         return map_detail_dic, player_states_dic, game_input_dic
 
-    @staticmethod
-    def __create_map_data(position, value, map_dic):
+    def __create_map_data(self, position, value, map_dic):
         """
         Analyse map information here.
         :param map_dic:
@@ -70,12 +74,12 @@ class ScreenCatch(object):
         :param value: symbol, ex. #, ., ) etc.
         :return:the map data, dict type
         """
-        can_pass_list = [".", "'", ")", ">"]
+        can_pass_list = self.game_dictionary.get_can_pass_text_list()
         can_it_pass = False
         if value in can_pass_list:
             can_it_pass = True
-        # map_dic[position] = [symbol, can pass?, fogs?]
-        map_dic[position] = [value, can_it_pass, False]
+        # map_dic[position] = [symbol, can pass?, fogs?, monster?, door?]
+        map_dic[position] = [value, can_it_pass, False, False, False]
         # fogs value will be checked later, this is a default value
         return map_dic
 
@@ -181,6 +185,22 @@ class ScreenCatch(object):
 
     @staticmethod
     def __catch_monster_by_range_x(dic, range_x1, range_x2, y):
+        # monster_line = ""
+        # for x in range(range_x1, range_x2):
+        #     monster_line = monster_line + dic[(x, y)]
+        # monster_name_list = monster_line.split(" ", 1)
+        # """
+        #     Sometimes, monster name in short will be showed on multiple case.
+        #     ex: hhh jackal, it means there are three jackals, which means that
+        #     there are three h in the map with different position.
+        # """
+        # if len(monster_name_list[0]) > 1:
+        #     monster_name_short = monster_name_list[0][0]  # catch only first character to present the monster
+        # else:
+        #     monster_name_short = monster_name_list[0]
+        # monster_name_long = monster_name_list[1].replace(' ', '')
+        # monster_list = [monster_name_short, monster_name_long]
+
         monster_short = dic[(range_x1, y)]
         monster_long = ""
         for x in range(range_x1 + 1, range_x2):
