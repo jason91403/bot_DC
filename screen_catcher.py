@@ -172,7 +172,8 @@ class ScreenCatch(object):
                'Ginput3': self.__catch_keywords_by_range_x(game_input, 0, 80, 19),
                'Ginput4': self.__catch_keywords_by_range_x(game_input, 0, 80, 20),
                'Ginput5': self.__catch_keywords_by_range_x(game_input, 0, 80, 21),
-               'Ginput6': self.__catch_keywords_by_range_x(game_input, 0, 80, 22)}
+               'Ginput6': self.__catch_keywords_by_range_x(game_input, 0, 80, 22),
+               'Ginput7': self.__catch_keywords_by_range_x(game_input, 0, 80, 23)}
         return gid
 
     @staticmethod

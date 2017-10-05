@@ -5,7 +5,7 @@
 class GameDictionary(object):
 
     text_door = "+"
-    can_pass_text_list = [".", "'", "(", ")", ">", "<", "†", "[", "$", "=", "!", "^", "%"]
+    can_pass_text_list = [".", "'", "(", ")", ">", "<", "†", "[", "$", "=", "!", "%", "?"]
     """
         '(', ')': something can be picked up (use ,key)
         '†': some monster died here before

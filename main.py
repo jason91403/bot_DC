@@ -87,14 +87,22 @@ def check_fogs(map_dic, game_dict):
     return map_dic, fogs_list
 
 
-def get_fogs_list_with_distance(player_position, fogs_list, tools):
-    fogs_with_distance = []
+def get_fogs_list_with_distance(player_position, fogs_list, map_record, path_finding_tool):
+    fogs_with_path_list = []
     for fog in fogs_list:
-        dis = tools.get_distance(player_position, fog)
-        fogs_with_distance.append([dis, fog])
+        path = path_finding_tool.path_finding(player_position, fog, map_record)
+        if path:
+            fogs_with_path_list.append([fog, path, len(path)])
+    fogs_with_path_list = sorted(fogs_with_path_list, key=lambda x: x[2])  # sort by distance
+    return fogs_with_path_list
 
-    fogs_with_distance = sorted(fogs_with_distance, key=lambda x: x[0]) # sort by distance
-    return fogs_with_distance
+    # fogs_with_distance = []
+    # for fog in fogs_list:
+    #     dis = tools.get_distance(player_position, fog)
+    #     fogs_with_distance.append([dis, fog])
+    #
+    # fogs_with_distance = sorted(fogs_with_distance, key=lambda x: x[0])  # sort by distance
+    # return fogs_with_distance
 
 
 def get_player_position(move_history):
@@ -197,12 +205,37 @@ def get_monster_position(map_record, monster_text):
     return monster_position
 
 
-def check_if_player_dead(game_input_dic):
-    is_dead = False
-    for input_line, input_content in game_input_dic.items():
-        if input_content == "Youdie...":
-            is_dead = True
-    return is_dead
+def get_closest_door(player_position, map_record, path_finding_tool):
+    doors_list_with_path = []
+    for position, data_list in map_record.items():
+        if data_list[0] == '+':
+            path = path_finding_tool.path_finding(player_position, position, map_record)
+            if path:
+                doors_list_with_path.append([position, path, len(path)])
+    if doors_list_with_path:
+        doors_list_with_path = sorted(doors_list_with_path, key=lambda x: x[2])  # sort by distance
+
+    return doors_list_with_path
+
+
+def get_player_position_and_update_it(map_record):
+    door_position = None
+    for position, data_list in map_record.items():
+        if data_list[0] == '+':
+            door_position = position
+            data_list[4] = True
+    return door_position
+
+
+def get_a_up_stairs_list(player_position, map_record, path_finding_tool):
+    stairs_position_list_with_path = []
+    for position, data_list in map_record.items():
+        if data_list[0] == '>':
+            path = path_finding_tool.path_finding(player_position, position, map_record)
+            if path:
+                stairs_position_list_with_path.append([position, path, len(path)])
+    stairs_position_list_with_path = sorted(stairs_position_list_with_path, key=lambda x: x[2])  # sort by distance
+    return stairs_position_list_with_path
 
 
 def main():
@@ -225,7 +258,7 @@ def main():
     button_path_finding = False
     button_path_go = False
     button_bot_start = False
-    test_text = None
+    # test_text = None
     # test area ##############################################################
 
     # Main objects ###########################################################
@@ -236,12 +269,13 @@ def main():
     game_input_dic = {}
     path_finding_list = []
     player_move_history = (0, 0)
+    map_name = ""
     transfer_key_tool = TransferKeys()
     screen_catch = ScreenCatch()
     path_finding_tool = PathFinding()
     tools = Tools()
     game_dictionary = GameDictionary()
-    monster_position = None
+    # monster_position = None
 
     # Screen update objects ##################################################
     screen_update_counter = 0  # for test
@@ -251,12 +285,13 @@ def main():
 
     # States machine objects #################################################
     """
-        0: Exploration, 1: Fighting, 2: Decision, 3: Dead
+        0: Exploration, 1: Fighting, 2: Decision(After finish exploration), 3: Dead, 4: Get Item and open door
         Default: 0
     """
     player_state_mode = 0
 
     while True:
+
         # Wait for input from the game or the keyboard
         (read, write, error) = select([file_descriptor, sys.stdin], [], [file_descriptor])
 
@@ -282,36 +317,39 @@ def main():
             else:
                 move = check_move_keys(message)
                 can_pass = True
-                # move != (0, 0) means control is move. Then, record some data.
-                if move != (0, 0):
-                    # If any move key has been pressed, then screen need to be updated.
-                    need_to_update_screen = True
-                    can_pass, target_text, player_move_history = update_player_move_history(
-                                                                                map_record,
-                                                                                player_move_history,
-                                                                                move)
-                    """
-                        Check if target_text is a monster, move still works but player_move_history 
-                        do not update.
-                    """
-                    if check_target_is_monster(player_states, target_text):
-                        can_pass = True
 
-                    if check_is_door(map_record, player_move_history,move):
-                        can_pass = True
+                if player_states is not None and player_states != {}:
 
-                    """
-                        Record current map before any control.
-                        Because it can not sure how many times the input will come,
-                        map_dic will keep update and I'm not sure while it is the final time.
-                        So if map_dic has not updated to the final than record to map_record,
-                        map_record will be wrong.
-                        Therefore, backup map_record and map_dic when player move. Then keep
-                        updating map_record_backup + map_previous + map_dic. map_record_backup
-                        and map_previous would be changed when screen update. map_record will be
-                        update until map_dic stop updating.
-                    """
-                    map_record_backup = map_record
+                    # move != (0, 0) means control is move. Then, record some data.
+                    if move != (0, 0):
+                        # If any move key has been pressed, then screen need to be updated.
+                        need_to_update_screen = True
+                        can_pass, target_text, player_move_history = update_player_move_history(
+                                                                                    map_record,
+                                                                                    player_move_history,
+                                                                                    move)
+                        """
+                            Check if target_text is a monster, move still works but player_move_history 
+                            do not update.
+                        """
+                        if check_target_is_monster(player_states, target_text):
+                            can_pass = True
+
+                        if check_is_door(map_record, player_move_history,move):
+                            can_pass = True
+
+                        """
+                            Record current map before any control.
+                            Because it can not sure how many times the input will come,
+                            map_dic will keep update and I'm not sure while it is the final time.
+                            So if map_dic has not updated to the final than record to map_record,
+                            map_record will be wrong.
+                            Therefore, backup map_record and map_dic when player move. Then keep
+                            updating map_record_backup + map_previous + map_dic. map_record_backup
+                            and map_previous would be changed when screen update. map_record will be
+                            update until map_dic stop updating.
+                        """
+                        map_record_backup = map_record
 
                 """
                     Send any key except move keys. If input is a move key, than check the 
@@ -334,7 +372,7 @@ def main():
                 """
                     To solve ascii problem, .decode("utf-8") and directly stream.feed(unicode(i))
                 """
-                message = os.read(file_descriptor, 1024).decode("utf-8")
+                message = os.read(file_descriptor, 1024).decode("utf-8", errors='ignore')
 
                 # Feed the games output into the terminal emulator
                 for i in message:
@@ -351,9 +389,8 @@ def main():
                 """
                     Sometime it will happen, not sure the reason.
                 """
-                # print "UnicodeDecodeError"
-                # print e
-                pass
+                print "UnicodeDecodeError"
+                print e
 
             '''
                             ISSUE:
@@ -378,44 +415,101 @@ def main():
 
         map_dic, player_states, game_input_dic = screen_catch.analyse_screen(screen_line, player_move_history)
 
-        # test_record_map_to_file("map_now.txt", map_dic)
-        # test_record_map_to_file_2("map_now.txt", map_dic)
+        if player_states is not None:
+            # To a different map => init data
+            if map_name == "":
+                map_name = player_states['Place']
+            else:
+                if map_name != player_states['Place']:
+                    map_name = player_states['Place']
+                    map_record.clear()
+                    map_record = map_dic
+                    player_move_history = (0, 0)
+                    continue
+
         tools.record_map_to_local_file("map_now.txt", map_dic)
 
+        # Read any message from game to check #################################################
         if game_input_dic:
-            if check_if_player_dead(game_input_dic):
+            # Check if play is dead, if so, switch mode to 3
+            is_dead = False
+            for input_line, input_content in game_input_dic.items():
+                if input_content == "Youdie...":
+                    is_dead = True
+                    break
+            if is_dead:
                 player_state_mode = 3
+
+            # Check if there is --more-- message, need to press enter key
+            # if game_input_dic['Ginput7'] == "--more--PressSpacetocontinue.YoucanlaterrereadmessageswithCtrl-P.":
+            if game_input_dic['Ginput7'] == "--more--":
+                send_input_to_game(file_descriptor, chr(13))
+                continue
+
+            # Check if need to select one for level up, if so, press S key
+            for input_line, input_content in game_input_dic.items():
+                if input_content == "Increase(S)trength,(I)ntelligence,or(D)exterity?":
+                    send_input_to_game(file_descriptor, chr(83))
+                    send_input_to_game(file_descriptor, chr(13))
+                    send_input_to_game(file_descriptor, chr(13))
+                    send_input_to_game(file_descriptor, chr(13))
+                    send_input_to_game(file_descriptor, chr(13))
+                    send_input_to_game(file_descriptor, chr(13))
+                    send_input_to_game(file_descriptor, chr(13))
+                    continue
+
+            is_a_staircase = False
+            # print "player_state_mode: " + str(player_state_mode)
+            if player_state_mode == 2:
+
+                for input_line, input_content in game_input_dic.items():
+                    if 'staircase' in input_content or 'escapehatch' in input_content:
+                        is_a_staircase = True
+                        break
+                if is_a_staircase:
+                    send_input_to_game(file_descriptor, chr(62))
+                    map_record.clear()
+                    continue
+
+        if player_state_mode == 3:
+            continue
 
         # Screen update start #####################################################
         if game_input_dic and player_state_mode != 3:
             update_flag = False
-            game_input_line_6 = game_input_dic['Ginput6']
-            # print "screen_update_switch_button : " + str(screen_update_switch_button)
-            if screen_update_switch_button and game_input_line_6 == "_Unknowncommand.":
-                # Enter key
-                update_flag = True
-                screen_update_switch_button = False
-            elif not screen_update_switch_button and game_input_line_6 == "_Youdon'tknowanyspells.":
-                # z key
-                update_flag = True
-                screen_update_switch_button = True
-                # print "_Youdon'tknowanyspells. update"
-            elif screen_update_first and game_input_line_6 == "_Press?foralistofcommandsandotherinformation.":
-                # First time in the game
-                # print "_Press?foralistofcommandsandotherinformation. update"
-                screen_update_first = False
-                update_flag = True
+            if screen_update_first:
+                for input_line, input_content in game_input_dic.items():
+                    if input_content == "_Press?foralistofcommandsandotherinformation.":
+                        update_flag = True
+                        screen_update_first = False
+                        break
+            else:
+                # print "screen_update_switch_button : " + str(screen_update_switch_button) if
+                # screen_update_switch_button and game_input_dic['Ginput6'] == "_Unknowncommand.(
+                # Foralistofcommandstype??.)":
+                if screen_update_switch_button and game_input_dic['Ginput6'] == "_Unknowncommand.":
+                    # Enter key
+                    update_flag = True
+                    screen_update_switch_button = False
+                elif not screen_update_switch_button and game_input_dic['Ginput6'] == "_Youdon'tknowanyspells.":
+                    # z key
+                    update_flag = True
+                    screen_update_switch_button = True
+                    #     # print "_Youdon'tknowanyspells. update"
+                    # elif screen_update_first and game_input_line_6 == "_Press?foralistofcommandsandotherinformation.":
+                    #     # First time in the game
+                    #     # print "_Press?foralistofcommandsandotherinformation. update"
+                    #     screen_update_first = False
+                    #     update_flag = True
+
             if update_flag:
                 screen_update_counter += 1
                 # Merge map_record_backup(record it before move) and map_dic(current map)
                 map_record = dict(map_record_backup.items() + map_dic.items())
                 need_to_update_screen = False
 
-            # print "game_input_line_6: " + str(game_input_line_6)
         # Screen update end #####################################################
 
-        # test_record_map_to_file("map_record_after.txt", map_record)
-        # test_record_map_to_file_2("map_record_after.txt", map_record)
         tools.record_map_to_local_file("map_record_after.txt", map_record)
 
         # Output area end ###################################################################################
@@ -449,39 +543,64 @@ def main():
         if not need_to_update_screen and player_states is not None and player_state_mode != 3:
             if check_any_monster_come_and_update_map(map_record, player_states):
                 player_state_mode = 1
-            else:
-                player_state_mode = 0
 
         # Fighting Mode Start ##################################################################
         if player_state_mode == 1:
             if not need_to_update_screen:
                 if player_states is not None:
                     monsters_dic = player_states['Monsters']
+                    attack_moves_list = []
                     for monster_num, monster_name_list in monsters_dic.items():
                         monster_position = get_monster_position(map_record, monster_name_list[0])
                         if monster_position is not None:
-                            break
+                            player_position = get_player_position(player_move_history)
+                            attack_moves_list = path_finding_tool.path_finding(player_position,
+                                                                               monster_position,
+                                                                               map_record)
+                            if attack_moves_list:
+                                break
+
+                    if attack_moves_list:
+                        message = attack_moves_list[0]
+                        move = check_move_keys(message)
+                        can_pass = True
+                        if move != (0, 0):
+                            need_to_update_screen = True
+                            can_pass, target_text, player_move_history = update_player_move_history(
+                                map_record,
+                                player_move_history,
+                                move)
+                            if check_target_is_monster(player_states, target_text):
+                                can_pass = True
+                            map_record_backup = map_record
+                        if can_pass:
+                            send_input_to_game(file_descriptor, message)
+                    else:
+                        # No monster can be reached, back to mode 0
+                        player_state_mode = 0
+
+
                     # print "monster_position: "+str(monster_position)
-                    if monster_position is not None:
-                        player_position = get_player_position(player_move_history)
-                        # print "player_position: " + str(player_position)
-                        attack_moves_list = path_finding_tool.path_finding(player_position, monster_position, map_record)
-                        # print "attack_moves_list: " + str(attack_moves_list)
-                        if attack_moves_list:
-                            message = attack_moves_list[0]
-                            move = check_move_keys(message)
-                            can_pass = True
-                            if move != (0, 0):
-                                need_to_update_screen = True
-                                can_pass, target_text, player_move_history = update_player_move_history(
-                                                                                                map_record,
-                                                                                                player_move_history,
-                                                                                                move)
-                                if check_target_is_monster(player_states, target_text):
-                                    can_pass = True
-                                map_record_backup = map_record
-                            if can_pass:
-                                send_input_to_game(file_descriptor, message)
+                    # if monster_position is not None:
+                    #     player_position = get_player_position(player_move_history)
+                    #     # print "player_position: " + str(player_position)
+                    #     attack_moves_list = path_finding_tool.path_finding(player_position, monster_position, map_record)
+                    #     # print "attack_moves_list: " + str(attack_moves_list)
+                    #     if attack_moves_list:
+                    #         message = attack_moves_list[0]
+                    #         move = check_move_keys(message)
+                    #         can_pass = True
+                    #         if move != (0, 0):
+                    #             need_to_update_screen = True
+                    #             can_pass, target_text, player_move_history = update_player_move_history(
+                    #                                                                             map_record,
+                    #                                                                             player_move_history,
+                    #                                                                             move)
+                    #             if check_target_is_monster(player_states, target_text):
+                    #                 can_pass = True
+                    #             map_record_backup = map_record
+                    #         if can_pass:
+                    #             send_input_to_game(file_descriptor, message)
                         # else:
                         #     print "This target can't pass."
         # Fighting Mode End ####################################################################
@@ -494,51 +613,49 @@ def main():
         # fogs_list = fogs_dic.keys()
         if button_path_finding and player_state_mode != 3:
             button_path_finding = not button_path_finding
-            if fogs_list:
-                player_state_mode = 1
-                a_fog_can_pass = False
+            tag_door = False
+
+            # To open a door first
+            door_position = get_player_position_and_update_it(map_record)
+            if door_position is not None:
                 player_position = get_player_position(player_move_history)
-                fogs_list_with_dis = get_fogs_list_with_distance(player_position, fogs_list, tools)
-                for fog_position_with_dis in fogs_list_with_dis:
-                    print "Target position: " + str(fog_position_with_dis[1])
-                    path_finding_list = path_finding_tool.path_finding(player_position,
-                                                                       fog_position_with_dis[1],
-                                                                       map_record)
-                    if path_finding_list:
+                path_finding_list = path_finding_tool.path_finding(player_position, door_position, map_record)
+                if path_finding_list:
+                    tag_door = True
+
+            if not tag_door:
+                print "No doors"
+                if fogs_list:
+                    player_state_mode = 0
+                    # a_fog_can_pass = False
+                    player_position = get_player_position(player_move_history)
+                    fogs_list_with_path = get_fogs_list_with_distance(player_position,
+                                                                      fogs_list,
+                                                                      map_record,
+                                                                      path_finding_tool)
+                    if fogs_list_with_path:
+                        path_finding_list = fogs_list_with_path[0][1]
                         print "Moves: " + str(path_finding_list)
-                        a_fog_can_pass = True
-                        break
                     else:
-                        print "This target can't pass."
-                if not a_fog_can_pass:
-                    print "No fog can pass."
-                    player_state_mode = 2   # Switch to decision mode
+                        print "No fog can pass."
+                        player_state_mode = 2   # Switch to decision mode
+
+                else:
+                    # Switch to decision mode
+                    print "No fogs."
+                    player_state_mode = 2
             else:
-                # Switch to decision mode
-                player_state_mode = 2
+                player_state_mode = 0
+                print "There is a door: " + str(door_position)
+                print "Move: " + str(path_finding_list)
 
             if player_state_mode == 2:
-                door_position = None
-                for position, data_list in map_record.items():
-                    if data_list[0] == '+':
-                        door_position = position
-                        # To update the map_record, then path_finding can get there
-                        data_list[4] = True
-                        break
-                if door_position is not None:
-                    player_position = get_player_position(player_move_history)
-                    path_finding_list = path_finding_tool.path_finding(player_position,
-                                                                       door_position,
-                                                                       map_record)
-                    print "Move to the door: " + str(door_position)
-                    if path_finding_list:
-                        print "Moves: " + str(path_finding_list)
-                    else:
-                        print "This target can't pass."
-
-
-
-
+                # To get a stairs
+                player_position = get_player_position(player_move_history)
+                up_stairs_list = get_a_up_stairs_list(player_position, map_record, path_finding_tool)
+                if up_stairs_list:
+                    path_finding_list = up_stairs_list[0][1]
+                    print "Moves to stairs: " + str(path_finding_list)
 
         # if button_bot_start and path_finding_list:
         #     button_path_go = True
@@ -590,10 +707,11 @@ def main():
                         button_path_go = False
 
         # Some msgs area
-        print "Testing Message:"
-        print "Screen update times: " + str(screen_update_counter)
-        print "player_move_history: " + str(player_move_history)
-        print "player_position" + str(get_player_position(player_move_history))
+        # print "Testing Message:"
+        # print "player_state_mode: " + str(player_state_mode)
+        # print "Screen update times: " + str(screen_update_counter)
+        # print "player_move_history: " + str(player_move_history)
+        # print "player_position" + str(get_player_position(player_move_history))
         # if player_states is not None:
         #     print "Monsters: " + str(player_states['Monsters'])
 
@@ -608,7 +726,7 @@ termios.tcsetattr(sys.stdin, termios.TCSANOW, settings)
 
 try:
     main()
-    print "Stop..."
+    print "Something wrong, the program stop..."
 finally:
     # Reset terminal settings back to how they were before
     termios.tcsetattr(sys.stdin, termios.TCSANOW, original)
