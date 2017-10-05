@@ -23,11 +23,11 @@ October 2017
 
 + Main file to run:
 
- - main.py
-   Usage:
-    python main.py
-   Params:
-    No param is required.
+  - main.py
+    Usage:
+     python main.py
+    Params:
+     No param is required.
 
 + Activate the AI bot:
  
